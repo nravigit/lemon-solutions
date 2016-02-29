@@ -1,0 +1,56 @@
+#!/bin/sh
+
+check_branch () {
+
+__branch__=$1
+__localbranch__=`git branch | sed 's/\s*//g' | grep -w "${__branch__}"`
+if [ "${__localbranch__}" == "${__branch__}" ]
+then
+echo -n "."
+sleep 0.25
+else
+git branch --track $dest $source
+fi
+
+
+}
+
+echo -n "Start"
+date
+if [ -f lock.pid ]
+then
+echo "A sync is already running, kindly check."
+exit 1
+fi
+
+if [ ! -f repo-list ]
+then
+echo "Can't find file repo-list"
+exit 1
+fi
+
+trap "rm lock.pid ; exit" SIGHUP SIGINT SIGTERM
+echo $$ > lock.pid
+
+sleep 60 
+for repo in `cat repo-list`
+do
+cd $repo
+git pull origin
+git pull --tags origin
+for branch in `git branch -r |grep -v HEAD |grep -v master|grep origin`
+do
+source=`echo $branch | sed 's/remotes\///g'`
+dest=`echo $source | sed 's/origin\///g'`
+check_branch $dest
+done
+
+echo "push $repo to local"
+git push --all local
+git push --tags local
+echo "$repo done"
+cd ../
+done
+rm lock.pid
+echo -n "End"
+date
